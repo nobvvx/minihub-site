@@ -689,7 +689,34 @@ function editAI(){
   document.getElementById('aibox').style.display='none';
   document.getElementById('ri').focus();
 }
-function refresh(){const st=document.getElementById('stxt');st.textContent='Synchronisation…';setTimeout(()=>st.textContent=localStorage.getItem('ai_key')?'✓ IA connectée — Claude Sonnet actif':'Mode démo — Configurez vos APIs',1500);}
+async function refresh(){
+  const backendUrl=localStorage.getItem('backend_url');
+  const st=document.getElementById('stxt');
+  if(!backendUrl){st.textContent='Mode démo — Configurez l'URL Backend dans ⚙️';return;}
+  st.textContent='Synchronisation…';
+  try{
+    const r=await fetch(backendUrl+'/api/messages');
+    const d=await r.json();
+    if(d.success&&d.messages){
+      // Merge backend messages with demo
+      d.messages.forEach(m=>{
+        if(!MSGS.find(x=>x.id===('b_'+m.id))){
+          MSGS.unshift({
+            id:'b_'+m.id, from:m.fromName||m.from,
+            entity:m.entity==='whatsapp'?'minitruck':m.entity,
+            plat:m.platform, time:new Date(m.timestamp).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+            unread:m.unread, aiDone:false,
+            msgs:[{s:m.sent,t:m.text,ts:new Date(m.timestamp).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}]
+          });
+        }
+      });
+      render();
+      st.textContent='✓ '+d.count+' messages reçus — '+new Date().toLocaleTimeString('fr-FR');
+    }
+  }catch(e){
+    st.textContent='Erreur connexion backend — vérifiez l'URL';
+  }
+}
 
 // ── MODALS ──
 function openModal(id){
@@ -748,11 +775,15 @@ function delUser(i){
 
 // ── APIs ──
 function loadAPIForm(){
+  const bu=localStorage.getItem('backend_url');
+  if(bu){const el=document.getElementById('cf-backend');if(el)el.value=bu;}
   const map={'cf-meta':'meta_token','cf-appid':'meta_appid','cf-waid':'wa_phone_id','cf-watoken':'wa_token','cf-ai':'ai_key'};
   Object.entries(map).forEach(([id,k])=>{const v=localStorage.getItem(k);if(v)document.getElementById(id).value=v;});
   ['agri','tp','truck'].forEach(e=>{const v=localStorage.getItem('ai_ctx_mini'+e);if(v)document.getElementById('cf-ctx-'+e).value=v;});
 }
 function saveAPIs(){
+  const backendUrl=document.getElementById('cf-backend').value.trim().replace(/\/+$/,'');
+  if(backendUrl)localStorage.setItem('backend_url',backendUrl);
   const map={'cf-meta':'meta_token','cf-appid':'meta_appid','cf-waid':'wa_phone_id','cf-watoken':'wa_token','cf-ai':'ai_key'};
   Object.entries(map).forEach(([id,k])=>{const v=document.getElementById(id).value.trim();if(v)localStorage.setItem(k,v);});
   ['agri','tp','truck'].forEach(e=>{const v=document.getElementById('cf-ctx-'+e).value.trim();if(v)localStorage.setItem('ai_ctx_mini'+e,v);});
